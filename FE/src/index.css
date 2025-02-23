@@ -1,3 +1,31 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+.custom-calendar .rbc-toolbar {
+    @apply bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-t-lg shadow-md;
+  }
+  
+  .custom-calendar .rbc-toolbar button {
+    @apply text-white hover:bg-white hover:bg-opacity-20 rounded-md px-3 py-1 transition-all duration-200;
+  }
+  
+  .custom-calendar .rbc-month-view,
+  .custom-calendar .rbc-time-view {
+    @apply bg-white rounded-b-lg;
+  }
+  
+  .custom-calendar .rbc-day-bg:hover {
+    @apply bg-gray-100 transition-colors duration-200;
+  }
+  
+  .custom-calendar .rbc-today {
+    @apply bg-indigo-50;
+  }
+  
+  .custom-calendar .rbc-header {
+    @apply text-gray-900 font-semibold py-3 bg-gray-50 border-b border-gray-200;
+  }
+  
+  .custom-calendar .rbc-event {
+    @apply cursor-pointer transition-transform duration-200 hover:scale-105;
+  }
