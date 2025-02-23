@@ -11,6 +11,7 @@
   "description": "",
   "dependencies": {
     "@google-cloud/speech": "^6.7.0",
+    "@google/generative-ai": "^0.22.0",
     "axios": "^1.7.9",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
