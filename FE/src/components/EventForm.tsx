@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useCalendarStore } from '../store/calendarStore';
 import { CalendarEvent } from '../types/calendar';
-import { Calendar, Clock, MapPin, X, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, MapPin, X, MessageSquare, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Gemini API (WARNING: Use backend proxy in production)
-const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+if (!apiKey) {
+  console.error('Gemini API key is missing from .env');
+}
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-8b' });
 
@@ -44,9 +47,9 @@ function EventForm({ onClose, initialEvent }: EventFormProps) {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
+  const [image, setImage] = useState<File | null>(null);
   const [isProcessingMessage, setIsProcessingMessage] = useState(false);
 
-  // Default time zone (user's local time zone)
   const defaultTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,12 +66,11 @@ function EventForm({ onClose, initialEvent }: EventFormProps) {
     }
 
     try {
-      // Add timeZone to the event data
       const eventData = {
         ...formData,
         startTime: startTime.toISOString(),
         endTime: endTime.toISOString(),
-        timeZone: defaultTimeZone, // Add default time zone
+        timeZone: defaultTimeZone,
       };
       await addEvent(eventData);
       toast.success(initialEvent ? 'Event updated!' : 'Event created!');
@@ -81,24 +83,57 @@ function EventForm({ onClose, initialEvent }: EventFormProps) {
     }
   };
 
-  const handleExtractFromMessage = async () => {
-    if (!message.trim()) {
-      toast.error('Please enter a message');
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please upload an image file');
+        return;
+      }
+      setImage(file);
+      setMessage(''); // Clear message if image is uploaded
+    }
+  };
+
+  const handleExtractDetails = async () => {
+    if (!message.trim() && !image) {
+      toast.error('Please enter a message or upload an image');
       return;
     }
 
     setIsProcessingMessage(true);
     try {
       const chatSession = model.startChat({ generationConfig, history: [] });
-      const prompt = `Extract event details from this message and return them in JSON format with fields: title, description, startTime (ISO format, e.g., "2025-02-22T16:00:00"), endTime (ISO format), location, priority (low/medium/high), type (meeting/task/reminder/other), timeZone (e.g., "Asia/Kolkata"). If a field is missing, use reasonable defaults (use "${defaultTimeZone}" for timeZone if not specified):\n\n${message}`;
-      const result = await chatSession.sendMessage(prompt);
-      const responseText = result.response.text();
+      const prompt = `Extract event details from this input and return them in JSON format with fields: title, description, startTime (ISO format, e.g., "2025-02-22T16:00:00"), endTime (ISO format), location, priority (low/medium/high), type (meeting/task/reminder/competition/other), timeZone (e.g., "Asia/Kolkata"). If a field is missing, use reasonable defaults (use "${defaultTimeZone}" for timeZone if not specified):\n\n`;
 
-      // Clean up response
+      let result;
+      if (image) {
+        // Convert image to base64
+        const reader = new FileReader();
+        const base64Image = await new Promise<string>((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(image);
+        });
+
+        // Send image to Gemini API
+        result = await chatSession.sendMessage([
+          prompt,
+          {
+            inlineData: {
+              data: base64Image.split(',')[1], // Remove "data:image/jpeg;base64," prefix
+              mimeType: image.type,
+            },
+          },
+        ]);
+      } else {
+        // Send text message to Gemini API
+        result = await chatSession.sendMessage(prompt + message);
+      }
+
+      const responseText = result.response.text();
       const cleanedResponse = responseText.replace(/```json\n|\n```/g, '').trim();
       const extractedData = JSON.parse(cleanedResponse);
 
-      // Update form data with extracted values
       setFormData((prev) => ({
         title: extractedData.title || prev.title || 'Untitled Event',
         description: extractedData.description || prev.description || '',
@@ -110,6 +145,7 @@ function EventForm({ onClose, initialEvent }: EventFormProps) {
       }));
       toast.success('Event details extracted successfully!');
       setMessage('');
+      setImage(null); // Clear image after processing
     } catch (error) {
       toast.error('Failed to extract event details');
       console.error('Gemini API error:', error);
@@ -141,25 +177,49 @@ function EventForm({ onClose, initialEvent }: EventFormProps) {
               <MessageSquare className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <textarea
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  setImage(null); // Clear image if message is typed
+                }}
                 className="w-full pl-10 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 rows={3}
                 placeholder="e.g., AI Day Mumbai on February 22, 2025, 4:00 PM - 7:00 PM at Haptik, Goregaon, Mumbai"
                 disabled={isSubmitting || isProcessingMessage}
               />
             </div>
-            <motion.button
-              type="button"
-              onClick={handleExtractFromMessage}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="mt-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md shadow-md hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-200 disabled:bg-indigo-400"
-              disabled={isSubmitting || isProcessingMessage}
-            >
-              {isProcessingMessage ? 'Processing...' : 'Extract Details'}
-            </motion.button>
           </div>
 
+          {/* Image Upload */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Or Upload an Image</label>
+            <div className="relative">
+              <Upload className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="w-full pl-10 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                disabled={isSubmitting || isProcessingMessage}
+              />
+            </div>
+            {image && (
+              <p className="mt-1 text-sm text-gray-600">Selected: {image.name}</p>
+            )}
+          </div>
+
+          {/* Extract Button */}
+          <motion.button
+            type="button"
+            onClick={handleExtractDetails}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-md shadow-md hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all duration-200 disabled:bg-indigo-400"
+            disabled={isSubmitting || isProcessingMessage}
+          >
+            {isProcessingMessage ? 'Processing...' : 'Extract Details'}
+          </motion.button>
+
+          {/* Form Fields */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
             <input
@@ -269,6 +329,7 @@ function EventForm({ onClose, initialEvent }: EventFormProps) {
                 <option value="meeting">Meeting</option>
                 <option value="task">Task</option>
                 <option value="reminder">Reminder</option>
+                <option value="competition">Competition</option>
                 <option value="other">Other</option>
               </select>
             </div>

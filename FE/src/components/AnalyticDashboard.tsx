@@ -172,7 +172,7 @@ export default function AnalyticsDashboard() {
           variants={fadeIn}
           value={timePeriod}
           onChange={(e) => setTimePeriod(e.target.value as TimePeriod)}
-          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-black rounded-full shadow-md text-sm font-medium focus:ring-2 focus:ring-indigo-400 focus:outline-none hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
+          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-md text-sm font-medium focus:ring-2 focus:ring-indigo-400 focus:outline-none hover:from-indigo-700 hover:to-purple-700 transition-all duration-200"
         >
           <option value="day">Day</option>
           <option value="week">Week</option>
