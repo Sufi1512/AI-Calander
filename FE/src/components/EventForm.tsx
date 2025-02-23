@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Initialize Gemini API (WARNING: Use backend proxy in production)
-const apiKey = 'AIzaSyD11x7YdsSrlBqmvq0TSHrnDaDNPenDkoQ';
+const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-8b' });
 
